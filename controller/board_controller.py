@@ -103,6 +103,24 @@ class BoardController:
             raise ValueError(f"Item '{child_id}' has no removable parent")
         self._save_and_notify()
 
+    def delete_item(self, item_id: str) -> None:
+        """Delete a work item, raising ValueError if it still has children."""
+        item = self._board.find_by_id(item_id)
+        if item is None:
+            raise ValueError(f"Item '{item_id}' not found")
+        if hasattr(item, "children") and item.children:
+            raise ValueError("Cannot delete: remove all children first.")
+        parent = self._board.find_parent(item_id)
+        if parent is None:
+            self._board.remove_epic(item_id)
+        elif hasattr(parent, "children"):
+            from model.work_item import Epic
+            if isinstance(parent, Epic):
+                self._board.remove_task(item_id)
+            else:
+                self._board.remove_child_task(item_id)
+        self._save_and_notify()
+
     def move_item(self, item_id: str, status_id: str) -> None:
         """Move a work item to a different status column."""
         self._board.move_item(item_id, status_id)

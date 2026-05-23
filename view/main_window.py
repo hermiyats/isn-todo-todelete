@@ -3,6 +3,8 @@ from view.kanban_board_view import KanbanBoardView
 from view.work_item_dialog import WorkItemDialog
 from view.status_dialog import StatusDialog
 from view.chart_window import ChartWindow
+from view.filter_dialog import FilterDialog
+from model.wiql_engine import WiqlEngine
 
 
 def _make_button(parent, text, bg, fg, font, command=None, disabled=False):
@@ -50,6 +52,9 @@ class MainWindow(tk.Tk):
         self.minsize(800, 500)
         self.configure(bg="#0F172A")
 
+        self._wiql = WiqlEngine()
+        self._visible_ids = None  # None = no filter active
+
         self._build_header()
         self._build_board()
         self._build_footer()
@@ -80,8 +85,13 @@ class MainWindow(tk.Tk):
             _make_button(header, text, "#3B82F6", "#FFFFFF",
                          ("Helvetica", 10, "bold"), command=cmd).pack(side="left", padx=4)
 
-        _make_button(header, "Filter (WIQL)", "#334155", "#94A3B8",
-                     ("Helvetica", 10), disabled=True).pack(side="right", padx=4)
+        self._filter_btn = tk.Label(
+            header,
+            font=("Helvetica", 10, "bold"),
+            padx=12, pady=6, cursor="hand2",
+        )
+        self._filter_btn.pack(side="right", padx=4)
+        self._update_filter_btn()
 
         _make_button(header, "Charts", "#0EA5E9", "#FFFFFF",
                      ("Helvetica", 10, "bold"),
@@ -120,6 +130,7 @@ class MainWindow(tk.Tk):
             self._on_delete_status,
             on_move_left  = self._on_move_status_left,
             on_move_right = self._on_move_status_right,
+            visible_ids   = self._visible_ids,
         )
 
     def show_message(self, text, error=False):
@@ -128,6 +139,46 @@ class MainWindow(tk.Tk):
             text=text,
             fg="#F87171" if error else "#94A3B8",
         )
+
+    # ── filter ───────────────────────────────────────────────────────
+
+    def _update_filter_btn(self):
+        """Re-render the filter button to reflect current filter state."""
+        self._filter_btn.unbind("<Button-1>")
+        self._filter_btn.unbind("<Enter>")
+        self._filter_btn.unbind("<Leave>")
+        if self._visible_ids is None:
+            self._filter_btn.config(text="Filter (WIQL)", bg="#334155", fg="#94A3B8")
+            self._filter_btn.bind("<Button-1>", lambda e: self._on_open_filter())
+            self._filter_btn.bind("<Enter>", lambda e: self._filter_btn.config(bg=_darken("#334155")))
+            self._filter_btn.bind("<Leave>", lambda e: self._filter_btn.config(bg="#334155"))
+        else:
+            self._filter_btn.config(text="Remove Filter", bg="#DC2626", fg="#FFFFFF")
+            self._filter_btn.bind("<Button-1>", lambda e: self._on_clear_filter())
+            self._filter_btn.bind("<Enter>", lambda e: self._filter_btn.config(bg=_darken("#DC2626")))
+            self._filter_btn.bind("<Leave>", lambda e: self._filter_btn.config(bg="#DC2626"))
+
+    def _on_open_filter(self):
+        """Open the WIQL filter modal."""
+        FilterDialog(self, on_apply=self._on_apply_filter)
+
+    def _on_apply_filter(self, query: str):
+        """Run the WIQL query and store matching item IDs."""
+        try:
+            results = self._wiql.evaluate(self._controller.board, query)
+            self._visible_ids = {item.id for item in results}
+            self._update_filter_btn()
+            self.refresh()
+            self.show_message(f"Filter active — {len(self._visible_ids)} item(s) shown.")
+        except Exception as exc:
+            self.show_message(f"WIQL error: {exc}", error=True)
+
+    def _on_clear_filter(self):
+        """Remove the active filter and restore all cards."""
+        self._visible_ids = None
+        self._update_filter_btn()
+        self.refresh()
+        self.show_message("Filter removed.")
 
     # ── callbacks ────────────────────────────────────────────────────
 

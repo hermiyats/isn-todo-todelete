@@ -95,8 +95,8 @@ class WorkItemDialog(tk.Toplevel):
         )
 
     def _build(self):
-        self._setup_combobox_style()
         """Construct all form fields and lay them out in the dialog window."""
+        self._setup_combobox_style()
         outer = tk.Frame(self, bg=BG)
         outer.pack(fill="both", expand=True, padx=24, pady=20)
 
@@ -158,9 +158,17 @@ class WorkItemDialog(tk.Toplevel):
 
         # Buttons row ─────────────────────────────────────────────────────────
         btn_row = tk.Frame(outer, bg=BG)
-        btn_row.pack(anchor="e", pady=(8, 0))
-        _btn(btn_row, "Cancel", self.destroy, bg="#334155").pack(side="left", padx=(0, 8))
-        _btn(btn_row, "Save & Close", self._on_close).pack(side="left")
+        btn_row.pack(fill="x", pady=(8, 0))
+
+        if not self._is_create:
+            has_children = bool(getattr(self._item, "children", []))
+            if has_children:
+                tk.Label(btn_row, text="Delete", bg="#7F1D1D", fg="#94A3B8",
+                         font=F_BOLD, padx=12, pady=6, cursor="arrow").pack(side="left")
+            else:
+                _btn(btn_row, "Delete", self._on_delete, bg=RED).pack(side="left")
+
+        _btn(btn_row, "Save & Close", self._on_close).pack(side="right")
 
     def _build_parent_selector(self, parent):
         """Build a dropdown to select the parent Epic or Task."""
@@ -212,7 +220,15 @@ class WorkItemDialog(tk.Toplevel):
             values=titles,
             style="Dark.TCombobox", state="readonly", font=F_NORM,
         )
-        combo.pack(fill="x", pady=(4, 12), ipady=4)
+        combo.pack(fill="x", pady=(4, 4), ipady=4)
+
+        if not self._is_create and current_parent:
+            lnk = tk.Label(parent, text=f"↑ Go to parent: {current_parent.title}",
+                           bg=BG, fg=ACCENT, font=F_SM, cursor="hand2", anchor="w")
+            lnk.pack(anchor="w", pady=(0, 8))
+            lnk.bind("<Button-1>", lambda e: self._open_parent(current_parent))
+            lnk.bind("<Enter>", lambda e: lnk.config(fg="#93C5FD"))
+            lnk.bind("<Leave>", lambda e: lnk.config(fg=ACCENT))
 
     def _build_children_section(self, parent):
         """Build the children list and add-child controls shown in edit mode."""
@@ -247,12 +263,12 @@ class WorkItemDialog(tk.Toplevel):
         for child in list(children):
             row = tk.Frame(self._children_frame, bg=BG_ROW)
             row.pack(fill="x", pady=2)
-            tk.Label(row, text=child.title, bg=BG_ROW, fg=FG, font=F_NORM,
-                     anchor="w").pack(side="left", padx=8, pady=4, fill="x", expand=True)
-            del_btn = tk.Label(row, text="✕", bg=BG_ROW, fg=RED,
-                               font=F_BOLD, cursor="hand2", padx=8)
-            del_btn.pack(side="right")
-            del_btn.bind("<Button-1>", lambda e, cid=child.id: self._on_remove_child(cid))
+            lbl = tk.Label(row, text=child.title, bg=BG_ROW, fg=ACCENT, font=F_NORM,
+                           anchor="w", cursor="hand2")
+            lbl.pack(side="left", padx=8, pady=4, fill="x", expand=True)
+            lbl.bind("<Button-1>", lambda e, c=child: self._open_child(c))
+            lbl.bind("<Enter>", lambda e, l=lbl: l.config(fg="#93C5FD"))
+            lbl.bind("<Leave>", lambda e, l=lbl: l.config(fg=ACCENT))
 
     # ── children actions ──────────────────────────────────────────────────────
 
@@ -285,6 +301,29 @@ class WorkItemDialog(tk.Toplevel):
         if self._item.due_date:
             self._due_var.set(self._item.due_date.isoformat())
         self._desc_text.insert("1.0", self._item.description)
+
+    # ── child / parent navigation ─────────────────────────────────────────────
+
+    def _open_child(self, child):
+        """Close this dialog and open an edit modal for the given child item."""
+        self.destroy()
+        WorkItemDialog(self.master, self._controller, child.type, item=child)
+
+    def _open_parent(self, parent_item):
+        """Close this dialog and open an edit modal for the parent item."""
+        self.destroy()
+        WorkItemDialog(self.master, self._controller, parent_item.type, item=parent_item)
+
+    # ── delete ────────────────────────────────────────────────────────────────
+
+    def _on_delete(self):
+        """Delete this item via the controller and close the dialog."""
+        try:
+            self._controller.delete_item(self._item.id)
+        except ValueError as ex:
+            self._error_var.set(str(ex))
+            return
+        self.destroy()
 
     # ── save & close ──────────────────────────────────────────────────────────
 

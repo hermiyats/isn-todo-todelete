@@ -9,7 +9,7 @@ class KanbanBoardView(tk.Frame):
         self._columns: list[StatusColumnView] = []
 
     def refresh(self, board, on_card_click, on_delete_status,
-                on_move_left=None, on_move_right=None):
+                on_move_left=None, on_move_right=None, visible_ids=None):
         """Destroy and rebuild all status columns from the current board state."""
         for col in self._columns:
             col.destroy()
@@ -22,7 +22,8 @@ class KanbanBoardView(tk.Frame):
             items = []
             for item in all_items:
                 if item.status_id == status.id:
-                    items.append(item)
+                    if visible_ids is None or item.id in visible_ids:
+                        items.append(item)
 
             col = StatusColumnView(
                 self, status, items,
