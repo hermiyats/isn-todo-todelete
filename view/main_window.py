@@ -2,6 +2,7 @@ import tkinter as tk
 from view.kanban_board_view import KanbanBoardView
 from view.work_item_dialog import WorkItemDialog
 from view.status_dialog import StatusDialog
+from view.chart_window import ChartWindow
 
 
 def _make_button(parent, text, bg, fg, font, command=None, disabled=False):
@@ -79,10 +80,12 @@ class MainWindow(tk.Tk):
             _make_button(header, text, "#3B82F6", "#FFFFFF",
                          ("Helvetica", 10, "bold"), command=cmd).pack(side="left", padx=4)
 
-        disabled_buttons = ["Filter (WIQL)", "Charts"]
-        for text in disabled_buttons:
-            _make_button(header, text, "#334155", "#94A3B8",
-                         ("Helvetica", 10), disabled=True).pack(side="right", padx=4)
+        _make_button(header, "Filter (WIQL)", "#334155", "#94A3B8",
+                     ("Helvetica", 10), disabled=True).pack(side="right", padx=4)
+
+        _make_button(header, "Charts", "#0EA5E9", "#FFFFFF",
+                     ("Helvetica", 10, "bold"),
+                     command=self._on_show_charts).pack(side="right", padx=4)
 
         _make_button(header, "+ Status", "#0F172A", "#FFFFFF",
                      ("Helvetica", 10, "bold"), command=self._on_new_status).pack(side="right", padx=4)
@@ -156,6 +159,9 @@ class MainWindow(tk.Tk):
 
     def _on_new_status(self):
         StatusDialog(self, self._controller)
+
+    def _on_show_charts(self):
+        ChartWindow(self, self._controller.board)
 
     def _on_delete_status(self, status_id: str):
         """Delete a status column, showing an error if items block it."""
